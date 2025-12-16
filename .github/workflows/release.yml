@@ -58,6 +58,7 @@ jobs:
   release:
     needs: [test, check-branch]
     runs-on: macos-latest
+    environment: release
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -88,5 +89,4 @@ jobs:
           MACOS_NOTARY_KEY_ID: ${{ vars.MACOS_NOTARY_KEY_ID }}
           MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
           MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
-          NFPM_PASSPHRASE: ${{ secrets.COSTA_SECURITY_GPG_PS }}
           GPG_KEY_PATH: ./costa-app.key
