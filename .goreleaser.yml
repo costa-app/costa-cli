@@ -63,8 +63,8 @@ homebrew_casks:
       owner: costa-app
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
-    binary:
-      source: costa
+    binaries:
+      - costa
     # templates are allowed; only publish when this is a prerelease
     skip_upload: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
 
