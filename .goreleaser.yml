@@ -53,7 +53,7 @@ homebrew_casks:
   - name: costa
     repository:
       owner: costa-app
-      name: homebrew-tap
+      name: homebrew-costa-cli
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     skip_upload: auto
 
@@ -61,7 +61,7 @@ homebrew_casks:
   - name: costa-beta
     repository:
       owner: costa-app
-      name: homebrew-tap
+      name: homebrew-costa-cli
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     binaries:
       - costa
