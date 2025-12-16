@@ -1,0 +1,92 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.25.0'
+          cache: true
+
+      - name: Run tests
+        run: go test -v ./...
+
+  check-branch:
+    runs-on: ubuntu-latest
+    outputs:
+      is-prerelease: ${{ steps.check.outputs.is-prerelease }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check branch and version
+        id: check
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          echo "Tag: $TAG"
+
+          # Check if this is a prerelease (contains a hyphen after the version)
+          if [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-.*$ ]]; then
+            echo "is-prerelease=true" >> $GITHUB_OUTPUT
+            echo "Prerelease detected - can be released from any branch"
+          else
+            echo "is-prerelease=false" >> $GITHUB_OUTPUT
+            # Full release - must be on main
+            BRANCH=$(git branch -r --contains $GITHUB_SHA | grep -E 'origin/main$' || true)
+            if [[ -z "$BRANCH" ]]; then
+              echo "Error: Full releases (without prerelease suffix) must be on main branch"
+              exit 1
+            fi
+            echo "Full release on main branch - proceeding"
+          fi
+
+  release:
+    needs: [test, check-branch]
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.25.0'
+          cache: true
+      
+      - name: Set GPG Key
+        run: echo "${{ secrets.COSTA_SECURITY_GPG_KEY_B64 }}" | base64 -d > costa-app.key
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          # 'latest', 'nightly', or a semver
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          MACOS_NOTARY_ISSUER_ID: ${{ vars.MACOS_NOTARY_ISSUER_ID }}
+          MACOS_NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY }}
+          MACOS_NOTARY_KEY_ID: ${{ vars.MACOS_NOTARY_KEY_ID }}
+          MACOS_SIGN_P12: ${{ secrets.MACOS_SIGN_P12 }}
+          MACOS_SIGN_PASSWORD: ${{ secrets.MACOS_SIGN_PASSWORD }}
+          NFPM_PASSPHRASE: ${{ secrets.COSTA_SECURITY_GPG_PS }}
+          GPG_KEY_PATH: ./costa-app.key

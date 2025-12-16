@@ -1,0 +1,141 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    # Core linters (enabled by default in golangci-lint)
+    - errcheck      # Check for unchecked errors
+    - gosimple      # Simplify code
+    - govet         # Vet examines Go source code and reports suspicious constructs
+    - ineffassign   # Detect ineffectual assignments
+    - staticcheck   # Go static analysis
+    - typecheck     # Type-check Go code
+    - unused        # Check for unused constants, variables, functions and types
+
+    # Additional recommended linters
+    - bodyclose     # Check HTTP response body is closed
+    - gofmt         # Check whether code was gofmt-ed
+    - goimports     # Check import statements are formatted according to goimports
+    - misspell      # Detect commonly misspelled English words
+    - revive        # Fast, configurable, extensible, flexible, and beautiful linter for Go
+    - unconvert     # Remove unnecessary type conversions
+    - unparam       # Report unused function parameters
+    - gocyclo       # Detect cyclomatic complexity
+    - gocritic      # Opinionated Go source code linter
+    - gosec         # Inspect source code for security problems
+
+  disable:
+    - gofumpt       # We'll use gofmt for now (gofumpt is stricter)
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+
+  govet:
+    enable-all: true
+    disable:
+      - shadow      # Can be noisy
+
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+  goimports:
+    local-prefixes: github.com/costa-app/costa-cli
+
+  gocyclo:
+    min-complexity: 25
+
+  misspell:
+    locale: US
+
+  gosec:
+    excludes:
+      - G104  # Audit errors not checked (covered by errcheck)
+      - G304  # File path provided as taint input (too many false positives in CLI tools)
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - gosec
+        - unparam
+
+    # Exclude known false positives
+    - text: "weak cryptographic primitive"
+      linters:
+        - gosec
+
+    # Allow fmt.Fprintf with dynamic format strings in CLI output
+    - path: internal/cli/
+      text: "use of `fmt.Fprintf` with dynamic format"
+      linters:
+        - gosec
+
+    # CLI output errors are cosmetic, don't need checking
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Fprintln` is not checked"
+      linters:
+        - errcheck
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Fprintf` is not checked"
+      linters:
+        - errcheck
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Fprint` is not checked"
+      linters:
+        - errcheck
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Println` is not checked"
+      linters:
+        - errcheck
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Printf` is not checked"
+      linters:
+        - errcheck
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Print` is not checked"
+      linters:
+        - errcheck
+    - path: internal/cli/
+      text: "Error return value of `fmt\\.Scanln` is not checked"
+      linters:
+        - errcheck
+
+    # Unused args in cobra command handlers are expected
+    - text: "unused-parameter.*args"
+      linters:
+        - revive
+
+    # Allow ifElseChain suggestion in long merges
+    - path: internal/integrations/claudecode/claudecode.go
+      text: "ifElseChain"
+      linters:
+        - gocritic
+
+    # openBrowser is a stub for now
+    - path: internal/cli/login.go
+      text: "unused-parameter.*url"
+      linters:
+        - revive

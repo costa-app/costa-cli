@@ -1,0 +1,79 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: costa
+    main: ./cmd/costa/main.go
+    binary: costa
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+    ldflags:
+      - "-s -w -X 'github.com/costa-app/costa-cli/pkg/version.Version={{.Version}}' -X 'github.com/costa-app/costa-cli/pkg/version.Commit={{.ShortCommit}}' -X 'github.com/costa-app/costa-cli/pkg/version.Date={{.Date}}'"
+
+# For macOS, create a universal binary
+universal_binaries:
+  - id: costa
+    replace: true
+    name_template: "costa"
+
+# Sign and notarize macOS binaries
+notarize:
+  macos:
+    - enabled: '{{ and (isEnvSet "MACOS_SIGN_P12") (isEnvSet "MACOS_SIGN_PASSWORD") (isEnvSet "MACOS_NOTARY_ISSUER_ID") (isEnvSet "MACOS_NOTARY_KEY_ID") (isEnvSet "MACOS_NOTARY_KEY") }}'
+      ids:
+        - costa
+      sign:
+        certificate: "{{.Env.MACOS_SIGN_P12}}"
+        password: "{{.Env.MACOS_SIGN_PASSWORD}}"
+      notarize:
+        issuer_id: "{{.Env.MACOS_NOTARY_ISSUER_ID}}"
+        key_id: "{{.Env.MACOS_NOTARY_KEY_ID}}"
+        key: "{{.Env.MACOS_NOTARY_KEY}}"
+        wait: true
+        timeout: 15m
+
+release:
+  prerelease: auto
+  github:
+    owner: costa-app
+    name: costa-cli
+
+homebrew_casks:
+  # Stable: update only on stable tags
+  - name: costa
+    repository:
+      owner: costa-app
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    skip_upload: auto
+
+  # Beta: update only on prerelease tags
+  - name: costa-beta
+    repository:
+      owner: costa-app
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    # templates are allowed; only publish when this is a prerelease
+    skip_upload: "{{ if .Prerelease }}false{{ else }}true{{ end }}"
+
+checksum:
+  split: true
+
+changelog:
+  sort: asc
+  use: git
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^build:"

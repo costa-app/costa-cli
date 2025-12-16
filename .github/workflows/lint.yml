@@ -1,0 +1,118 @@
+name: lint
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Check PR title follows conventional commits
+        if: github.event_name == 'pull_request'
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test|security)(\(.+\))?(!)?: .{1,}'
+
+          if ! echo "$PR_TITLE" | grep -qE "$pattern"; then
+            echo "❌ PR title does not follow conventional commits format:"
+            echo "   $PR_TITLE"
+            echo ""
+            echo "Please use conventional commit format for the PR title:"
+            echo "  type(scope?): description"
+            echo ""
+            echo "Types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test, security"
+            echo ""
+            echo "This is required because we use squash-merge, and GitHub will use"
+            echo "the PR title as the commit message on main."
+            exit 1
+          fi
+          echo "✓ PR title follows conventional commits format"
+
+      - name: Check conventional commits (advisory)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        run: |
+          # Get all commits in the PR
+          commits=$(git log --format=%H origin/${{ github.base_ref }}..HEAD)
+
+          # Conventional commit regex pattern
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test|security)(\(.+\))?(!)?: .{1,}'
+
+          failed=false
+          for commit in $commits; do
+            msg=$(git log --format=%s -n 1 $commit)
+            if ! echo "$msg" | grep -qE "$pattern"; then
+              echo "⚠️  Commit $commit does not follow conventional commits format:"
+              echo "   $msg"
+              failed=true
+            else
+              echo "✓ Commit $commit follows conventional commits"
+            fi
+          done
+
+          if [ "$failed" = true ]; then
+            echo ""
+            echo "While individual commits don't strictly need to follow conventional"
+            echo "commits (since we squash-merge), it's good practice for clear history."
+            echo ""
+            echo "Format: type(scope?): description"
+            echo "Types: build, chore, ci, docs, feat, fix, perf, refactor, revert, style, test, security"
+          fi
+
+      - name: Setup Go
+        id: setup-go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '>=1.25.0'
+          cache: true
+
+      - name: Cache Go build
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gobuild-${{ steps.setup-go.outputs.go-version }}-
+            ${{ runner.os }}-gobuild-
+
+      - name: Cache tools
+        uses: actions/cache@v4
+        with:
+          path: ~/go/bin
+          key: ${{ runner.os }}-gotools-golangci-1.62.2-govuln-latest
+
+      - name: Tidy modules
+        run: go mod tidy && git diff --exit-code
+
+      - name: Install golangci-lint
+        run: |
+          if ! command -v golangci-lint &> /dev/null; then
+            go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2
+          fi
+
+      - name: Lint
+        run: golangci-lint run
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Install govulncheck
+        run: |
+          if ! command -v govulncheck &> /dev/null; then
+            go install golang.org/x/vuln/cmd/govulncheck@latest
+          fi
+
+      - name: Vulnerability scan
+        run: govulncheck ./...
