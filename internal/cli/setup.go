@@ -22,6 +22,8 @@ var (
 	setupRefreshTokenOnly bool
 	setupRequireInstalled bool
 	setupStatusFormat     string
+	setupEnableStatusLine bool
+	setupSkipStatusLine   bool
 )
 
 var setupCmd = &cobra.Command{
@@ -55,6 +57,8 @@ func init() {
 	setupClaudeCodeCmd.Flags().StringVar(&setupBackupDir, "backup-dir", "", "Custom backup directory")
 	setupClaudeCodeCmd.Flags().BoolVar(&setupRefreshTokenOnly, "refresh-token-only", false, "Only update the authentication token")
 	setupClaudeCodeCmd.Flags().BoolVar(&setupRequireInstalled, "require-installed", false, "Fail if Claude CLI is not installed")
+	setupClaudeCodeCmd.Flags().BoolVar(&setupEnableStatusLine, "enable-statusline", false, "Enable Claude Code status line")
+	setupClaudeCodeCmd.Flags().BoolVar(&setupSkipStatusLine, "skip-statusline", false, "Skip statusline prompt")
 
 	// Status flags
 	setupStatusCmd.Flags().BoolVar(&setupUser, "user", false, "Check user config (default)")
@@ -76,13 +80,15 @@ func runSetupClaudeCode(cmd *cobra.Command, args []string) error {
 
 	// Build options
 	opts := integrations.ApplyOpts{
-		Scope:            scope,
-		TokenOverride:    setupToken,
-		Force:            setupForce,
-		RefreshTokenOnly: setupRefreshTokenOnly,
-		DryRun:           setupDryRun,
-		BackupDir:        setupBackupDir,
-		RequireInstalled: setupRequireInstalled,
+		Scope:             scope,
+		TokenOverride:     setupToken,
+		Force:             setupForce,
+		RefreshTokenOnly:  setupRefreshTokenOnly,
+		DryRun:            setupDryRun,
+		BackupDir:         setupBackupDir,
+		RequireInstalled:  setupRequireInstalled,
+		EnableStatusLine:  setupEnableStatusLine,
+		SkipStatusLine:    setupSkipStatusLine,
 	}
 
 	// Create integration
@@ -132,9 +138,35 @@ func runSetupClaudeCode(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// Prompt for statusLine if not already set and not skipped
+	if !setupSkipStatusLine && !setupEnableStatusLine && !setupRefreshTokenOnly {
+		fmt.Fprint(cmd.OutOrStdout(), "\n📊 Would you like to include the Costa status line in Claude Code?\n")
+		fmt.Fprint(cmd.OutOrStdout(), "   This will show your points usage in the Claude Code status bar.\n")
+		fmt.Fprint(cmd.OutOrStdout(), "   Include status line? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
+			setupEnableStatusLine = true
+			opts.EnableStatusLine = true
+			// Re-plan with statusLine enabled
+			planOpts.EnableStatusLine = true
+			newPlanResult, err := integration.Apply(ctx, planOpts)
+			if err != nil {
+				return err
+			}
+			planResult = newPlanResult
+
+			// Show updated changes including statusLine
+			fmt.Fprintln(cmd.OutOrStdout(), "\n📝 Updated changes to apply:")
+			for _, change := range planResult.UpdatedKeys {
+				fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", change)
+			}
+		}
+	}
+
 	// Confirm if not --force
 	if !setupForce {
-		fmt.Fprint(cmd.OutOrStdout(), "\nProceed? [y/N]: ")
+		fmt.Fprint(cmd.OutOrStdout(), "\nProceed with changes? [y/N]: ")
 		var response string
 		fmt.Scanln(&response)
 		if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {

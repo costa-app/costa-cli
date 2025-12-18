@@ -19,6 +19,8 @@ type ApplyOpts struct {
 	RefreshTokenOnly bool
 	DryRun           bool
 	RequireInstalled bool
+	EnableStatusLine bool // Enable status line in Claude Code
+	SkipStatusLine   bool // Skip status line prompt
 }
 
 // ApplyResult contains the result of applying configuration

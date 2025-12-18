@@ -22,6 +22,9 @@ var statusCmd = &cobra.Command{
 	Short: "Show Costa CLI status",
 	Long:  `Display the current login status and usage information.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if statusFormat == "claude-code" {
+			return outputStatusClaudeCode(cmd)
+		}
 		if statusFormat == "json" {
 			return outputStatusJSON(cmd)
 		}
@@ -41,7 +44,7 @@ var statusCmd = &cobra.Command{
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			usage, _ := fetchUsage(ctx)
+			usage, _ := fetchUsageWithCache(ctx)
 			usageChan <- usage
 		}()
 
@@ -68,7 +71,7 @@ func outputStatusJSON(cmd *cobra.Command) error {
 	if loggedIn {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		usage, err := fetchUsage(ctx)
+		usage, err := fetchUsageWithCache(ctx)
 		if err == nil && usage != nil {
 			output["points"] = usage.Points
 			output["total_points"] = usage.TotalPoints
@@ -84,16 +87,39 @@ func outputStatusJSON(cmd *cobra.Command) error {
 	return nil
 }
 
+func outputStatusClaudeCode(cmd *cobra.Command) error {
+	out := cmd.OutOrStdout()
+
+	// Check login status
+	if !auth.IsLoggedIn() {
+		fmt.Fprintf(out, "Costa: Not logged in")
+		return nil
+	}
+
+	// Fetch usage with cache
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	usage, err := fetchUsageWithCache(ctx)
+	if err != nil || usage == nil {
+		fmt.Fprintf(out, "Costa: Error fetching usage")
+		return nil
+	}
+
+	// Format: "Costa: X / Y points"
+	fmt.Fprintf(out, "💫  %s / %s ", formatPoints(usage.Points), usage.TotalPoints)
+	return nil
+}
+
 func init() {
-	statusCmd.Flags().StringVar(&statusFormat, "format", "", "Output format (json)")
+	statusCmd.Flags().StringVar(&statusFormat, "format", "", "Output format (json|claude-code)")
 }
 
 // UsageInfo represents the usage data from /api/v1/usage
 type UsageInfo struct {
-	Points       float64 `json:"points"`
-	TotalPoints  string  `json:"total_points"`
-	ContextLen   float64 `json:"context_length"`
-	UpdatedAt    string  `json:"updated_at"`
+	Points      float64 `json:"points"`
+	TotalPoints string  `json:"total_points"`
+	ContextLen  float64 `json:"context_length"`
+	UpdatedAt   string  `json:"updated_at"`
 }
 
 // fetchUsage fetches usage information from the Costa API
@@ -144,4 +170,38 @@ func formatPoints(points float64) string {
 		return fmt.Sprintf("%d", int(points))
 	}
 	return fmt.Sprintf("%.1f", points)
+}
+
+// Cache for usage data
+type usageCache struct {
+	data      *UsageInfo
+	timestamp time.Time
+}
+
+var globalUsageCache *usageCache
+
+// fetchUsageWithCache fetches usage with 15-second caching
+func fetchUsageWithCache(ctx context.Context) (*UsageInfo, error) {
+	// Check cache validity (15 seconds)
+	if globalUsageCache != nil && time.Since(globalUsageCache.timestamp) < 15*time.Second {
+		return globalUsageCache.data, nil
+	}
+
+	// Fetch fresh data
+	usage, err := fetchUsage(ctx)
+	if err != nil {
+		// Return stale cache if available on error
+		if globalUsageCache != nil {
+			return globalUsageCache.data, nil
+		}
+		return nil, err
+	}
+
+	// Update cache
+	globalUsageCache = &usageCache{
+		data:      usage,
+		timestamp: time.Now(),
+	}
+
+	return usage, nil
 }
