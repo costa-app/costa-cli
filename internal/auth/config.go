@@ -48,6 +48,6 @@ func OAuthConfig() *oauth2.Config {
 			AuthURL:  GetAuthURL(),
 			TokenURL: GetTokenURL(),
 		},
-		Scopes: []string{"api_tokens:read"},
+		Scopes: []string{"api_tokens:read", "usage"},
 	}
 }

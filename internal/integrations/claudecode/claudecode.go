@@ -66,7 +66,7 @@ func (c *ClaudeCode) Apply(ctx context.Context, opts integrations.ApplyOpts) (in
 	}
 
 	// Build desired settings
-	desired := buildDesiredSettings(token)
+	desired := buildDesiredSettings(token, opts.EnableStatusLine)
 
 	// Merge settings
 	merged, updatedKeys, unchangedKeys := mergeSettings(existing, desired, opts.RefreshTokenOnly)
@@ -219,7 +219,7 @@ func writeJSONFile(path string, data map[string]any) error {
 	return os.Rename(tmpPath, path)
 }
 
-func buildDesiredSettings(token string) map[string]any {
+func buildDesiredSettings(token string, enableStatusLine bool) map[string]any {
 	baseURL := auth.GetBaseURL() + "/api"
 
 	// Debug: print what we're using
@@ -227,7 +227,7 @@ func buildDesiredSettings(token string) map[string]any {
 	debug.Printf("DEBUG: Resolved base URL = %q\n", auth.GetBaseURL())
 	debug.Printf("DEBUG: ANTHROPIC_BASE_URL will be set to = %q\n", baseURL)
 
-	return map[string]any{
+	settings := map[string]any{
 		"model":                 "costa/auto",
 		"alwaysThinkingEnabled": true,
 		"env": map[string]any{
@@ -240,6 +240,24 @@ func buildDesiredSettings(token string) map[string]any {
 			"DISABLE_PROMPT_CACHING":           true,
 		},
 	}
+
+	// Add status line if enabled
+	if enableStatusLine {
+		// Find costa binary path
+		costaPath, err := exec.LookPath("costa")
+		if err != nil {
+			// Fallback to common install location
+			costaPath = "costa"
+		}
+
+		settings["statusLine"] = map[string]any{
+			"type":    "command",
+			"command": costaPath + " status --format claude-code",
+			"padding": 0,
+		}
+	}
+
+	return settings
 }
 
 // mergeSettings merges desired settings into existing settings.
@@ -305,6 +323,32 @@ func mergeSettings(existing, desired map[string]any, refreshTokenOnly bool) (map
 					} else {
 						unchangedKeys = append(unchangedKeys, fmt.Sprintf("env.%s", envKey))
 					}
+				}
+			} else if key == "statusLine" {
+				// Special handling for statusLine object
+				existingStatusLine, hasStatusLine := merged["statusLine"].(map[string]any)
+				desiredStatusLine, ok := desiredValue.(map[string]any)
+				if !ok {
+					continue // Skip if not a map
+				}
+
+				// Check if statusLine changed
+				statusLineChanged := !hasStatusLine
+				if hasStatusLine {
+					// Compare each field
+					for slKey, slValue := range desiredStatusLine {
+						if existingStatusLine[slKey] != slValue {
+							statusLineChanged = true
+							break
+						}
+					}
+				}
+
+				if statusLineChanged {
+					merged["statusLine"] = desiredValue
+					updatedKeys = append(updatedKeys, "statusLine")
+				} else {
+					unchangedKeys = append(unchangedKeys, "statusLine")
 				}
 			} else {
 				// Top-level keys - always update when different

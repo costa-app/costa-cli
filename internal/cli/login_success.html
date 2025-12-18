@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Login Successful</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+		body {
+			font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+			background-color: #020617;
+			color: #f8fafc;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			min-height: 100vh;
+			text-align: center;
+		}
+		.container {
+			max-width: 500px;
+			padding: 2rem;
+		}
+		h1 {
+			font-size: 2rem;
+			margin-bottom: 1rem;
+			font-weight: 600;
+		}
+		p {
+			font-size: 1rem;
+			opacity: 0.9;
+			line-height: 1.5;
+		}
+	</style>
+	<script>
+		setTimeout(function() {
+			window.close();
+		}, 2000);
+	</script>
+</head>
+<body>
+	<div class="container">
+		<h1>Login Successful!</h1>
+		<p>You can close this window and return to your terminal.</p>
+		<p style="margin-top: 1rem; font-size: 0.875rem; opacity: 0.7;">This window will close automatically in 2 seconds.</p>
+	</div>
+</body>
+</html>
