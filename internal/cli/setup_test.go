@@ -47,9 +47,9 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", originalHome)
 
-	// Prepare command with stdin set to "n\n" (decline)
+	// Prepare command with stdin set to "n\nn\n" (decline status line, then decline proceed)
 	var outBuf, errBuf bytes.Buffer
-	stdinReader := strings.NewReader("n\n")
+	stdinReader := strings.NewReader("n\nn\n")
 
 	// Create root and add setup command
 	root := &cobra.Command{Use: "costa"}
@@ -66,10 +66,13 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 		t.Fatalf("Command failed: %v", err)
 	}
 
-	// Verify output contains the prompt
+	// Verify output contains the prompts
 	output := outBuf.String()
-	if !strings.Contains(output, "Proceed? [y/N]:") {
-		t.Errorf("Expected prompt in output, got:\n%s", output)
+	if !strings.Contains(output, "Include status line? [y/N]:") {
+		t.Errorf("Expected status line prompt in output, got:\n%s", output)
+	}
+	if !strings.Contains(output, "Proceed with changes? [y/N]:") {
+		t.Errorf("Expected proceed prompt in output, got:\n%s", output)
 	}
 
 	// Verify output says "Canceled"
