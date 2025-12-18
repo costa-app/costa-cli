@@ -223,9 +223,9 @@ func buildDesiredSettings(token string) map[string]any {
 	baseURL := auth.GetBaseURL() + "/api"
 
 	// Debug: print what we're using
-	fmt.Printf("DEBUG: COSTA_BASE_URL env var = %q\n", os.Getenv("COSTA_BASE_URL"))
-	fmt.Printf("DEBUG: Resolved base URL = %q\n", auth.GetBaseURL())
-	fmt.Printf("DEBUG: ANTHROPIC_BASE_URL will be set to = %q\n", baseURL)
+	debug.Printf("DEBUG: COSTA_BASE_URL env var = %q\n", os.Getenv("COSTA_BASE_URL"))
+	debug.Printf("DEBUG: Resolved base URL = %q\n", auth.GetBaseURL())
+	debug.Printf("DEBUG: ANTHROPIC_BASE_URL will be set to = %q\n", baseURL)
 
 	return map[string]any{
 		"model":                 "costa/auto",
