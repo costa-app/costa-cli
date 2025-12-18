@@ -116,10 +116,10 @@ func init() {
 
 // UsageInfo represents the usage data from /api/v1/usage
 type UsageInfo struct {
-	Points      float64 `json:"points"`
 	TotalPoints string  `json:"total_points"`
-	ContextLen  float64 `json:"context_length"`
 	UpdatedAt   string  `json:"updated_at"`
+	Points      float64 `json:"points"`
+	ContextLen  float64 `json:"context_length"`
 }
 
 // fetchUsage fetches usage information from the Costa API
