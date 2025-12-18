@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	_ "embed"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,9 @@ import (
 
 	"github.com/costa-app/costa-cli/internal/auth"
 )
+
+//go:embed login_success.html
+var loginSuccessHTML string
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
@@ -69,14 +73,7 @@ var loginCmd = &cobra.Command{
 
 			// Send success response to browser
 			w.Header().Set("Content-Type", "text/html")
-			fmt.Fprintf(w, `
-				<html>
-					<body>
-						<h1>Login Successful!</h1>
-						<p>You can close this window and return to your terminal.</p>
-					</body>
-				</html>
-			`)
+			fmt.Fprint(w, loginSuccessHTML)
 
 			codeChan <- code
 		})
