@@ -158,8 +158,7 @@ func outputHuman(cmd *cobra.Command, token *auth.Token) error {
 
 	// Show hint if no coding token yet
 	if token.Coding == nil && token.OAuth != nil {
-		fmt.Fprintln(out, "Note: OAuth token obtained, but no coding token yet.")
-		fmt.Fprintln(out, "      Coding token exchange will be implemented soon.")
+		fmt.Fprintln(out, "Note: No coding token found.")
 	}
 
 	if !tokenRaw {
