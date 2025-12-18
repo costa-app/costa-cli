@@ -80,15 +80,15 @@ func runSetupClaudeCode(cmd *cobra.Command, args []string) error {
 
 	// Build options
 	opts := integrations.ApplyOpts{
-		Scope:             scope,
-		TokenOverride:     setupToken,
-		Force:             setupForce,
-		RefreshTokenOnly:  setupRefreshTokenOnly,
-		DryRun:            setupDryRun,
-		BackupDir:         setupBackupDir,
-		RequireInstalled:  setupRequireInstalled,
-		EnableStatusLine:  setupEnableStatusLine,
-		SkipStatusLine:    setupSkipStatusLine,
+		Scope:            scope,
+		TokenOverride:    setupToken,
+		Force:            setupForce,
+		RefreshTokenOnly: setupRefreshTokenOnly,
+		DryRun:           setupDryRun,
+		BackupDir:        setupBackupDir,
+		RequireInstalled: setupRequireInstalled,
+		EnableStatusLine: setupEnableStatusLine,
+		SkipStatusLine:   setupSkipStatusLine,
 	}
 
 	// Create integration
