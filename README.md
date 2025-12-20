@@ -23,8 +23,7 @@ Features:
 ### Homebrew (macOS)
 
 ```bash
-# Coming soon
-brew install costa-app/tap/costa
+brew install --cask costa-app/costa-cli/costa
 ```
 
 ### Pre-built Binaries
@@ -35,6 +34,20 @@ macOS universal binary (Apple Silicon + Intel):
 ```bash
 curl -L https://github.com/costa-app/costa-cli/releases/latest/download/costa_darwin_all -o costa
 chmod +x costa
+sudo mv costa /usr/local/bin/
+```
+
+Linux (amd64):
+```bash
+curl -LO https://github.com/costa-app/costa-cli/releases/latest/download/costa_<VERSION>_linux_amd64.tar.gz
+tar xzf costa_*_linux_amd64.tar.gz
+sudo mv costa /usr/local/bin/
+```
+
+Linux (arm64):
+```bash
+curl -LO https://github.com/costa-app/costa-cli/releases/latest/download/costa_<VERSION>_linux_arm64.tar.gz
+tar xzf costa_*_linux_arm64.tar.gz
 sudo mv costa /usr/local/bin/
 ```
 
@@ -211,7 +224,9 @@ just release v1.0.0
 
 This triggers the release workflow which:
 - Builds universal macOS binaries (Apple Silicon + Intel)
-- Signs and notarizes the binary (when credentials are configured)
+- Builds Linux binaries (amd64 + arm64)
+- Signs and notarizes macOS binaries (when credentials are configured)
+- Updates Homebrew tap for macOS
 - Creates a GitHub release with artifacts and changelog
 
 ## Contributing

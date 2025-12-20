@@ -122,12 +122,15 @@ func SaveToken(token *Token) error {
 		// Try to save to keyring
 		if err := saveTokenToKeyring(token); err != nil {
 			debug.Printf("Failed to save to keyring, falling back to file: %v\n", err)
+			debug.Printf("Setting useKeyring=false for future operations\n")
 			useKeyring = false
 			return saveTokenToFile(token)
 		}
+		debug.Printf("Successfully saved to keyring\n")
 		return nil
 	}
 
+	debug.Printf("Using file storage (useKeyring=false)\n")
 	return saveTokenToFile(token)
 }
 
@@ -185,16 +188,35 @@ func saveTokenToFile(token *Token) error {
 		return err
 	}
 
+	debug.Printf("Saving token to file: %s\n", tokenPath)
+
 	data, err := json.MarshalIndent(token, "", "  ")
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(tokenPath, data, 0600)
+	if err := os.WriteFile(tokenPath, data, 0600); err != nil {
+		debug.Printf("Failed to write token file: %v\n", err)
+		return err
+	}
+
+	debug.Printf("Successfully saved token to file\n")
+	return nil
 }
 
 // LoadToken loads the token from keyring (with file fallback)
 func LoadToken() (*Token, error) {
+	// First check if token file exists (file fallback mode from previous session)
+	tokenPath, err := GetTokenPath()
+	if err == nil {
+		if _, statErr := os.Stat(tokenPath); statErr == nil {
+			debug.Printf("Loading from file (file fallback mode detected)\n")
+			useKeyring = false
+			return loadTokenFromFile()
+		}
+	}
+
+	// Otherwise try keyring mode
 	if useKeyring {
 		token, err := loadTokenFromKeyring()
 		if err != nil {
@@ -319,29 +341,39 @@ func DeleteToken() error {
 
 // IsLoggedIn checks if a token exists
 func IsLoggedIn() bool {
-	// Check metadata file and at least one keyring entry
-	metadataPath, err := GetMetadataPath()
-	if err != nil {
-		return false
-	}
-	if _, err := os.Stat(metadataPath); err != nil {
-		return false
-	}
+	debug.Printf("Checking if logged in...\n")
 
-	if _, err := keyring.Get(keyringService, keyringOAuthAccessToken); err == nil {
-		return true
-	}
-	if _, err := keyring.Get(keyringService, keyringCodingAccessToken); err == nil {
-		return true
-	}
-
-	// Fallback: if legacy file exists
+	// First check if token file exists (file fallback mode)
 	tokenPath, err := GetTokenPath()
 	if err == nil {
 		if _, err := os.Stat(tokenPath); err == nil {
+			debug.Printf("Token file exists at %s (file fallback mode)\n", tokenPath)
 			return true
 		}
 	}
+
+	// Then check keyring mode (metadata file + keyring entries)
+	debug.Printf("Checking keyring mode...\n")
+	metadataPath, err := GetMetadataPath()
+	if err != nil {
+		debug.Printf("Failed to get metadata path: %v\n", err)
+		return false
+	}
+	if _, err := os.Stat(metadataPath); err != nil {
+		debug.Printf("Metadata file does not exist: %v\n", err)
+		return false
+	}
+	debug.Printf("Metadata file exists at %s\n", metadataPath)
+
+	if _, err := keyring.Get(keyringService, keyringOAuthAccessToken); err == nil {
+		debug.Printf("Found OAuth access token in keyring\n")
+		return true
+	}
+	if _, err := keyring.Get(keyringService, keyringCodingAccessToken); err == nil {
+		debug.Printf("Found coding access token in keyring\n")
+		return true
+	}
+	debug.Printf("No tokens found in keyring\n")
 	return false
 }
 
