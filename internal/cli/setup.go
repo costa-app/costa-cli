@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -72,6 +73,9 @@ func init() {
 func runSetupClaudeCode(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
+	// Use a single reader for all prompts to avoid buffering issues
+	inputReader := bufio.NewReader(cmd.InOrStdin())
+
 	// Determine scope (default to user)
 	scope := integrations.ScopeUser
 	if setupProject {
@@ -142,10 +146,10 @@ func runSetupClaudeCode(cmd *cobra.Command, args []string) error {
 	if !setupSkipStatusLine && !setupEnableStatusLine && !setupRefreshTokenOnly {
 		fmt.Fprint(cmd.OutOrStdout(), "\n📊 Would you like to include the Costa status line in Claude Code?\n")
 		fmt.Fprint(cmd.OutOrStdout(), "   This will show your points usage in the Claude Code status bar.\n")
-		fmt.Fprint(cmd.OutOrStdout(), "   Include status line? [y/N]: ")
-		var response string
-		fmt.Scanln(&response)
-		if strings.ToLower(response) == "y" || strings.ToLower(response) == "yes" {
+		fmt.Fprint(cmd.OutOrStdout(), "   Include status line? [Y/n]: ")
+		response, _ := inputReader.ReadString('\n')
+		resp := strings.ToLower(strings.TrimSpace(response))
+		if resp != "n" && resp != "no" { // default YES
 			setupEnableStatusLine = true
 			opts.EnableStatusLine = true
 			// Re-plan with statusLine enabled
@@ -166,10 +170,10 @@ func runSetupClaudeCode(cmd *cobra.Command, args []string) error {
 
 	// Confirm if not --force
 	if !setupForce {
-		fmt.Fprint(cmd.OutOrStdout(), "\nProceed with changes? [y/N]: ")
-		var response string
-		fmt.Scanln(&response)
-		if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+		fmt.Fprint(cmd.OutOrStdout(), "\nProceed with changes? [Y/n]: ")
+		response, _ := inputReader.ReadString('\n')
+		resp := strings.ToLower(strings.TrimSpace(response))
+		if resp == "n" || resp == "no" { // default YES
 			fmt.Fprintln(cmd.OutOrStdout(), "Canceled.")
 			return nil
 		}

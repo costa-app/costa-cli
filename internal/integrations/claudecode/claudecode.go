@@ -230,6 +230,7 @@ func buildDesiredSettings(token string, enableStatusLine bool) map[string]any {
 	settings := map[string]any{
 		"model":                 "costa/auto",
 		"alwaysThinkingEnabled": true,
+		"apiKeyHelper":          "echo $ANTHROPIC_API_KEY",
 		"env": map[string]any{
 			"ANTHROPIC_BASE_URL":               baseURL,
 			"ANTHROPIC_AUTH_TOKEN":             token,
