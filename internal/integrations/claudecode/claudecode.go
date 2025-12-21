@@ -73,7 +73,29 @@ func (c *ClaudeCode) Apply(ctx context.Context, opts integrations.ApplyOpts) (in
 
 	result.UpdatedKeys = updatedKeys
 	result.UnchangedKeys = unchangedKeys
-	result.Changed = len(updatedKeys) > 0
+	// Include onboarding flag in ~/.claude.json if needed
+	homeDir, _ := os.UserHomeDir()
+	onboardingPath := ""
+	var onboardingData map[string]any
+	needsOnboarding := false
+	if homeDir != "" {
+		onboardingPath = filepath.Join(homeDir, ".claude.json")
+		data, err := loadJSONFile(onboardingPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				onboardingData = make(map[string]any)
+			} else {
+				return result, fmt.Errorf("failed to load onboarding config: %w", err)
+			}
+		} else {
+			onboardingData = data
+		}
+		if v, ok := onboardingData["hasCompletedOnboarding"].(bool); !ok || !v {
+			needsOnboarding = true
+			result.UpdatedKeys = append(result.UpdatedKeys, "~/.claude.json.hasCompletedOnboarding")
+		}
+	}
+	result.Changed = len(result.UpdatedKeys) > 0
 
 	// If no changes and not dry run, we're done
 	if !result.Changed {
@@ -100,6 +122,12 @@ func (c *ClaudeCode) Apply(ctx context.Context, opts integrations.ApplyOpts) (in
 	// Write settings
 	if err := writeJSONFile(settingsPath, merged); err != nil {
 		return result, fmt.Errorf("failed to write settings: %w", err)
+	}
+	if needsOnboarding {
+		onboardingData["hasCompletedOnboarding"] = true
+		if err := writeJSONFile(onboardingPath, onboardingData); err != nil {
+			return result, fmt.Errorf("failed to write onboarding config: %w", err)
+		}
 	}
 
 	return result, nil
@@ -230,7 +258,6 @@ func buildDesiredSettings(token string, enableStatusLine bool) map[string]any {
 	settings := map[string]any{
 		"model":                 "costa/auto",
 		"alwaysThinkingEnabled": true,
-		"apiKeyHelper":          "echo $ANTHROPIC_API_KEY",
 		"env": map[string]any{
 			"ANTHROPIC_BASE_URL":               baseURL,
 			"ANTHROPIC_AUTH_TOKEN":             token,

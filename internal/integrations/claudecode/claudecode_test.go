@@ -60,10 +60,6 @@ func TestClaudeCodeSetup_CreatesConfigWithCostaSettings(t *testing.T) {
 		t.Errorf("Expected alwaysThinkingEnabled=true, got %v", settings["alwaysThinkingEnabled"])
 	}
 
-	if apiKeyHelper, ok := settings["apiKeyHelper"].(string); !ok || apiKeyHelper != "echo $ANTHROPIC_API_KEY" {
-		t.Errorf("Expected apiKeyHelper='echo $ANTHROPIC_API_KEY', got %v", settings["apiKeyHelper"])
-	}
-
 	// Check env keys
 	env, ok := settings["env"].(map[string]any)
 	if !ok {
