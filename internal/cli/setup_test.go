@@ -66,12 +66,12 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 		t.Fatalf("Command failed: %v", err)
 	}
 
-	// Verify output contains the prompts
+	// Verify output contains the prompts (default is YES with [Y/n])
 	output := outBuf.String()
-	if !strings.Contains(output, "Include status line? [y/N]:") {
+	if !strings.Contains(output, "Include status line? [Y/n]:") {
 		t.Errorf("Expected status line prompt in output, got:\n%s", output)
 	}
-	if !strings.Contains(output, "Proceed with changes? [y/N]:") {
+	if !strings.Contains(output, "Proceed with changes? [Y/n]:") {
 		t.Errorf("Expected proceed prompt in output, got:\n%s", output)
 	}
 
