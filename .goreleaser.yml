@@ -12,6 +12,7 @@ builds:
       - CGO_ENABLED=0
     goos:
       - darwin
+      - linux
     goarch:
       - amd64
       - arm64
@@ -25,6 +26,15 @@ universal_binaries:
   - id: costa
     replace: true
     name_template: "costa"
+
+# Archives for distribution
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
 
 # Sign and notarize macOS binaries
 notarize:
@@ -48,6 +58,7 @@ release:
     owner: costa-app
     name: costa-cli
 
+# Homebrew casks for macOS
 homebrew_casks:
   # Stable: update only on stable tags
   - name: costa
