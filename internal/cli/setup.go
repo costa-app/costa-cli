@@ -11,6 +11,8 @@ import (
 
 	"github.com/costa-app/costa-cli/internal/integrations"
 	"github.com/costa-app/costa-cli/internal/integrations/claudecode"
+	"github.com/costa-app/costa-cli/internal/integrations/codex"
+	"github.com/costa-app/costa-cli/internal/auth"
 )
 
 var (
@@ -41,6 +43,13 @@ var setupClaudeCodeCmd = &cobra.Command{
 	RunE:    runSetupClaudeCode,
 }
 
+var setupCodexCmd = &cobra.Command{
+	Use:   "codex",
+	Short: "Setup Codex CLI to use Costa",
+	Long:  `Configure Codex CLI to use Costa's API and token.`,
+	RunE:  runSetupCodex,
+}
+
 var setupStatusCmd = &cobra.Command{
 	Use:   "status [app]",
 	Short: "Check setup status",
@@ -66,7 +75,13 @@ func init() {
 	setupStatusCmd.Flags().BoolVar(&setupProject, "project", false, "Check project config")
 	setupStatusCmd.Flags().StringVar(&setupStatusFormat, "format", "", "Output format (json)")
 
+	// Codex flags
+	setupCodexCmd.Flags().StringVar(&setupToken, "token", "", "Use explicit token instead of fetching from Costa")
+	setupCodexCmd.Flags().BoolVar(&setupForce, "force", false, "Skip confirmation prompt (auto-yes)")
+	setupCodexCmd.Flags().BoolVar(&setupDryRun, "dry-run", false, "Show what would change without writing")
+
 	setupCmd.AddCommand(setupClaudeCodeCmd)
+	setupCmd.AddCommand(setupCodexCmd)
 	setupCmd.AddCommand(setupStatusCmd)
 }
 
@@ -215,6 +230,9 @@ func runSetupStatus(cmd *cobra.Command, args []string) error {
 		if appName == "claude-code" {
 			return showClaudeCodeStatus(cmd, ctx, scope)
 		}
+		if appName == "codex" {
+			return showCodexStatus(cmd, ctx, scope)
+		}
 
 		return fmt.Errorf("unknown app: %s", appName)
 	}
@@ -225,6 +243,12 @@ func runSetupStatus(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(cmd.ErrOrStderr(), "Error checking Claude Code: %v\n", err)
 	}
 
+	// Check Codex
+	codexStatus, codexErr := codex.New().Status(ctx, scope)
+	if codexErr != nil && setupStatusFormat != "json" {
+		fmt.Fprintf(cmd.ErrOrStderr(), "Error checking Codex: %v\n", codexErr)
+	}
+
 	// JSON output
 	if setupStatusFormat == "json" {
 		output := map[string]interface{}{
@@ -233,6 +257,10 @@ func runSetupStatus(cmd *cobra.Command, args []string) error {
 				"version":          claudeStatus.Version,
 				"config_exists":    claudeStatus.ConfigExists,
 				"is_costa_enabled": claudeStatus.IsCosta,
+			},
+			"codex": map[string]interface{}{
+				"config_exists":    codexStatus.ConfigExists,
+				"is_costa_enabled": codexStatus.IsCosta,
 			},
 		}
 		if err != nil {
@@ -258,6 +286,19 @@ func runSetupStatus(cmd *cobra.Command, args []string) error {
 		}
 		if claudeStatus.ConfigExists {
 			if claudeStatus.IsCosta {
+				fmt.Fprintln(cmd.OutOrStdout(), "  Configured:   ✓ Costa enabled")
+			} else {
+				fmt.Fprintln(cmd.OutOrStdout(), "  Configured:   ⚠ Partial setup")
+			}
+		} else {
+			fmt.Fprintln(cmd.OutOrStdout(), "  Configured:   ✗ Not configured")
+		}
+	}
+
+	if codexErr == nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "Codex:          %s\n", formatStatusIcon(codexStatus.IsCosta))
+		if codexStatus.ConfigExists {
+			if codexStatus.IsCosta {
 				fmt.Fprintln(cmd.OutOrStdout(), "  Configured:   ✓ Costa enabled")
 			} else {
 				fmt.Fprintln(cmd.OutOrStdout(), "  Configured:   ⚠ Partial setup")
@@ -350,6 +391,150 @@ func showClaudeCodeStatus(cmd *cobra.Command, ctx context.Context, scope integra
 		fmt.Fprintln(cmd.OutOrStdout(), "\nRun 'costa setup claude-code' to fix.")
 	}
 
+	return nil
+}
+
+func showCodexStatus(cmd *cobra.Command, ctx context.Context, scope integrations.Scope) error {
+	integration := codex.New()
+	status, err := integration.Status(ctx, scope)
+	if err != nil {
+		return fmt.Errorf("failed to check status: %w", err)
+	}
+
+	// JSON output
+	if setupStatusFormat == "json" {
+		output := map[string]interface{}{
+			"scope":            string(status.Scope),
+			"config_path":      status.ConfigPath,
+			"config_exists":    status.ConfigExists,
+			"is_costa_enabled": status.IsCosta,
+		}
+		if status.Model != "" {
+			output["model"] = status.Model
+		}
+		data, jsonErr := json.Marshal(output)
+		if jsonErr != nil {
+			return jsonErr
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), string(data))
+		return nil
+	}
+
+	// Human-readable output
+	fmt.Fprintln(cmd.OutOrStdout(), "🔍 Codex Setup Status")
+
+	// Config info
+	fmt.Fprintf(cmd.OutOrStdout(), "Config scope:   %s\n", status.Scope)
+	fmt.Fprintf(cmd.OutOrStdout(), "Config path:    %s\n", status.ConfigPath)
+
+	// Config status
+	if !status.ConfigExists {
+		fmt.Fprintln(cmd.OutOrStdout(), "Config status:  ✗ Not configured")
+		fmt.Fprintln(cmd.OutOrStdout(), "Run 'costa setup codex' to configure.")
+		return nil
+	}
+
+	if status.IsCosta {
+		fmt.Fprintln(cmd.OutOrStdout(), "Config status:  ✓ Configured for Costa")
+
+		// Show current model
+		if status.Model != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "Model:          %s\n", status.Model)
+		}
+	} else {
+		fmt.Fprintln(cmd.OutOrStdout(), "Config status:  ⚠ Partially configured")
+		fmt.Fprintln(cmd.OutOrStdout(), "\nRun 'costa setup codex' to fix.")
+	}
+
+	return nil
+}
+
+func runSetupCodex(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+
+	opts := integrations.ApplyOpts{
+		Scope:         integrations.ScopeUser,
+		TokenOverride: setupToken,
+		Force:         setupForce,
+		DryRun:        setupDryRun,
+	}
+
+	integration := codex.New()
+
+	// Get status
+	status, err := integration.Status(ctx, integrations.ScopeUser)
+	if err != nil {
+		return fmt.Errorf("failed to check status: %w", err)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "📁 Config path: %s\n", status.ConfigPath)
+
+	// Phase 1: dry run to see changes
+	planOpts := opts
+	planOpts.DryRun = true
+	planResult, err := integration.Apply(ctx, planOpts)
+	if err != nil {
+		return err
+	}
+
+	if !planResult.Changed {
+		fmt.Fprintln(cmd.OutOrStdout(), "✓ Already configured! No changes needed.")
+		return nil
+	}
+
+	// Show planned changes
+	fmt.Fprintln(cmd.OutOrStdout(), "\n📝 Changes to apply:")
+	for _, change := range planResult.UpdatedKeys {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s\n", change)
+	}
+
+	// Honor --dry-run
+	if setupDryRun {
+		fmt.Fprintln(cmd.OutOrStdout(), "\n🔍 Dry run - no changes made")
+		return nil
+	}
+
+	// Confirm if not --force
+	if !setupForce {
+		fmt.Fprint(cmd.OutOrStdout(), "\nProceed with changes? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+			fmt.Fprintln(cmd.OutOrStdout(), "Canceled.")
+			return nil
+		}
+	}
+
+	// Phase 2: apply
+	writeOpts := opts
+	writeOpts.DryRun = false
+	result, err := integration.Apply(ctx, writeOpts)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintln(cmd.OutOrStdout(), "✅ Successfully configured Codex for Costa!")
+
+	// Now add COSTA_KEY to shell profile
+	token := opts.TokenOverride
+	if token == "" {
+		// Must fetch it (same logic as in codex.go)
+		tokenData, err := auth.GetCodingToken(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to get token for shell profile: %w", err)
+		}
+		token = tokenData.AccessToken
+	}
+
+	profilePath, err := codex.AddCOSTAKeyToShellProfile(token)
+	if err != nil {
+		return fmt.Errorf("failed to add COSTA_KEY to shell profile: %w", err)
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "✅ Added COSTA_KEY to %s\n", profilePath)
+	fmt.Fprintln(cmd.OutOrStdout(), "💡 Please run: source "+profilePath)
+
+	_ = result
 	return nil
 }
 
