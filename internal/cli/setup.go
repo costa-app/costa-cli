@@ -9,10 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/costa-app/costa-cli/internal/auth"
 	"github.com/costa-app/costa-cli/internal/integrations"
 	"github.com/costa-app/costa-cli/internal/integrations/claudecode"
 	"github.com/costa-app/costa-cli/internal/integrations/codex"
-	"github.com/costa-app/costa-cli/internal/auth"
 )
 
 var (
