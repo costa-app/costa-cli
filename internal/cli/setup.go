@@ -526,7 +526,7 @@ func runSetupCodex(cmd *cobra.Command, args []string) error {
 		token = tokenData.AccessToken
 	}
 
-	profilePath, err := codex.AddCOSTAKeyToShellProfile(token)
+	profilePath, err := codex.AddCostaKeyToShellProfile(token)
 	if err != nil {
 		return fmt.Errorf("failed to add COSTA_KEY to shell profile: %w", err)
 	}

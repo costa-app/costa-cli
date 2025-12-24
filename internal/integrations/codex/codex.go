@@ -194,19 +194,36 @@ func mergeToml(existing, desired map[string]any) (map[string]any, []string) {
 	return updated, updatedKeys
 }
 
-// AddCOSTAKeyToShellProfile ensures COSTA_KEY is exported in the user's shell profile
-func AddCOSTAKeyToShellProfile(token string) (string, error) {
+// AddCostaKeyToShellProfile ensures COSTA_KEY is exported in the user's shell profile
+func AddCostaKeyToShellProfile(token string) (string, error) {
 	h, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
 	}
 
-	profile := ""
-	if runtime.GOOS == "darwin" {
+	// Detect shell from $SHELL environment variable
+	shellPath := os.Getenv("SHELL")
+	if shellPath == "" {
+		return "", fmt.Errorf("SHELL environment variable not set; cannot determine shell profile")
+	}
+
+	// Extract shell name from path (e.g., /bin/zsh -> zsh)
+	shellName := filepath.Base(shellPath)
+
+	// Determine profile file based on shell
+	var profile string
+	switch shellName {
+	case "zsh":
 		profile = filepath.Join(h, ".zprofile")
-	} else {
-		// common linux default when using bash
-		profile = filepath.Join(h, ".bashrc")
+	case "bash":
+		// Prefer .bash_profile on macOS, .bashrc on Linux
+		if runtime.GOOS == "darwin" {
+			profile = filepath.Join(h, ".bash_profile")
+		} else {
+			profile = filepath.Join(h, ".bashrc")
+		}
+	default:
+		return "", fmt.Errorf("unsupported shell: %s (only bash and zsh are supported)", shellName)
 	}
 
 	line := fmt.Sprintf("export COSTA_KEY=%q\n", token)
