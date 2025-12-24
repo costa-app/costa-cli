@@ -256,3 +256,21 @@ func TestTokenCommandJSONFormatNotLoggedIn(t *testing.T) {
 		t.Errorf("expected logged_in to be false, got true")
 	}
 }
+
+func TestLoginCommandJSONFormatNotLoggedIn(t *testing.T) {
+	// Isolate HOME so no real token exists
+	t.Setenv("HOME", t.TempDir())
+
+	// Create a new login command for testing (but don't actually execute the full flow)
+	// We'll just test that the --format flag exists for JSON output support
+
+	// Reset flags after test
+	defer func() {
+		loginFormat = ""
+	}()
+
+	// Test that --format flag is available
+	if loginCmd.Flags().Lookup("format") == nil {
+		t.Fatal("login command should have --format flag")
+	}
+}

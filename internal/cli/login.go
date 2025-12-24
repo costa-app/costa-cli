@@ -6,9 +6,13 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -20,13 +24,25 @@ import (
 //go:embed login_success.html
 var loginSuccessHTML string
 
+var (
+	loginFormat        string
+	loginWaitTimeout   = 10 * time.Minute // Proposed reasonable wait window
+	pollInterval       = 500 * time.Millisecond
+)
+
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Authenticate with Costa",
 	Long:  `Login to Costa using OAuth2 to obtain an access token.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Check if already logged in
+		// If we're already logged in, exit early
 		if auth.IsLoggedIn() {
+			if loginFormat == "json" {
+				return writeJSON(cmd, map[string]any{
+					"status":    "already_logged_in",
+					"logged_in": true,
+				})
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), "Already logged in. Use 'costa logout' to logout first.")
 			return nil
 		}
@@ -51,12 +67,15 @@ var loginCmd = &cobra.Command{
 		codeChan := make(chan string)
 		errChan := make(chan error)
 
-		// Start local HTTP server to handle callback
-		server := &http.Server{
-			Addr:              ":" + auth.RedirectPort,
-			ReadHeaderTimeout: 10 * time.Second,
-		}
-		http.HandleFunc("/costa-code-cli/callback", func(w http.ResponseWriter, r *http.Request) {
+		mux := http.NewServeMux()
+		// Ready endpoint so other invocations can detect our listener
+		mux.HandleFunc("/costa-code-cli/ready", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("ok"))
+		})
+
+		// OAuth callback handler
+		mux.HandleFunc("/costa-code-cli/callback", func(w http.ResponseWriter, r *http.Request) {
 			// Verify state
 			if r.URL.Query().Get("state") != state {
 				errChan <- fmt.Errorf("invalid state parameter")
@@ -78,12 +97,31 @@ var loginCmd = &cobra.Command{
 			codeChan <- code
 		})
 
-		// Start server in goroutine
-		go func() {
-			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				errChan <- fmt.Errorf("failed to start callback server: %w", err)
+		// Prepare local server
+		server := &http.Server{
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
+
+		// Try to acquire the port; if already in use, reuse existing listener
+		ln, listenErr := net.Listen("tcp", ":"+auth.RedirectPort)
+		existingListener := false
+		if listenErr != nil {
+			if errors.Is(listenErr, syscall.EADDRINUSE) {
+				existingListener = true
+			} else {
+				return fmt.Errorf("failed to bind callback port: %w", listenErr)
 			}
-		}()
+		}
+
+		if !existingListener {
+			// Start server in goroutine
+			go func() {
+				if err := server.Serve(ln); err != nil && err != http.ErrServerClosed {
+					errChan <- fmt.Errorf("callback server error: %w", err)
+				}
+			}()
+		}
 
 		// Build authorization URL with PKCE
 		authURL := config.AuthCodeURL(state,
@@ -92,21 +130,50 @@ var loginCmd = &cobra.Command{
 			oauth2.SetAuthURLParam("code_challenge_method", "S256"),
 		)
 
-		fmt.Fprintln(cmd.OutOrStdout(), "Opening browser for authentication...")
-		fmt.Fprintf(cmd.OutOrStdout(), "\nIf the browser doesn't open automatically, visit:\n%s\n\n", authURL)
+		if loginFormat == "json" {
+			_ = writeJSON(cmd, map[string]any{
+				"status":                    "waiting_for_user",
+				"auth_url":                  authURL,
+				"using_existing_listener":   existingListener,
+				"timeout_seconds":           int(loginWaitTimeout / time.Second),
+				"redirect_uri":              auth.GetRedirectURL(),
+			})
+		} else {
+			fmt.Fprintln(cmd.OutOrStdout(), "Opening browser for authentication...")
+			fmt.Fprintf(cmd.OutOrStdout(), "\nIf the browser doesn't open automatically, visit:\n%s\n\n", authURL)
+		}
 
 		// Try to open browser (this will fail gracefully if not possible)
 		_ = openBrowser(authURL)
 
-		// Wait for callback or error
+		// Wait for completion
+		if existingListener {
+			// Another costa login is already listening on the port.
+			// Wait until we detect a successful login (token saved) or timeout.
+			ctx, cancel := context.WithTimeout(context.Background(), loginWaitTimeout)
+			defer cancel()
+			if err := waitUntilLoggedIn(ctx); err != nil {
+				return fmt.Errorf("authentication timeout - please try again: %w", err)
+			}
+			if loginFormat == "json" {
+				return writeJSON(cmd, map[string]any{
+					"status":    "success",
+					"logged_in": true,
+				})
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), "Successfully logged in!")
+			return nil
+		}
+
+		// Otherwise, handle the callback ourselves
 		var code string
 		select {
 		case code = <-codeChan:
-			// Success - continue with token exchange
+			// continue
 		case err := <-errChan:
 			_ = server.Shutdown(context.Background())
 			return err
-		case <-time.After(5 * time.Minute):
+		case <-time.After(loginWaitTimeout):
 			_ = server.Shutdown(context.Background())
 			return fmt.Errorf("authentication timeout - please try again")
 		}
@@ -155,9 +222,39 @@ var loginCmd = &cobra.Command{
 			fmt.Fprintln(cmd.ErrOrStderr(), "You can retry by running any command that requires authentication.")
 		}
 
+		if loginFormat == "json" {
+			return writeJSON(cmd, map[string]any{
+				"status":    "success",
+				"logged_in": true,
+			})
+		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Successfully logged in!")
 		return nil
 	},
+}
+
+// writeJSON prints a single-line JSON object to stdout
+func writeJSON(cmd *cobra.Command, m map[string]any) error {
+	data, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), string(data))
+	return nil
+}
+
+// waitUntilLoggedIn polls until auth.IsLoggedIn() returns true or context is done
+func waitUntilLoggedIn(ctx context.Context) error {
+	for {
+		if auth.IsLoggedIn() {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(pollInterval):
+		}
+	}
 }
 
 // generateRandomState generates a random state string for CSRF protection
@@ -189,4 +286,8 @@ func openBrowser(url string) error {
 	// This is a simple implementation - you might want to use a library
 	// or implement platform-specific logic
 	return nil
+}
+
+func init() {
+	loginCmd.Flags().StringVar(&loginFormat, "format", "", "Output format (json)")
 }
