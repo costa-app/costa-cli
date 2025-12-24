@@ -27,12 +27,12 @@ import (
 var loginSuccessHTML string
 
 var (
-	loginFormat        string
-	loginServerMode    bool   // Internal flag: run as background OAuth server
-	loginState         string // Internal: PKCE state for server-mode
-	loginVerifier      string // Internal: PKCE verifier for server-mode
-	loginWaitTimeout   = 10 * time.Minute // Proposed reasonable wait window
-	pollInterval       = 500 * time.Millisecond
+	loginFormat      string
+	loginServerMode  bool               // Internal flag: run as background OAuth server
+	loginState       string             // Internal: PKCE state for server-mode
+	loginVerifier    string             // Internal: PKCE verifier for server-mode
+	loginWaitTimeout = 10 * time.Minute // Proposed reasonable wait window
+	pollInterval     = 500 * time.Millisecond
 )
 
 var loginCmd = &cobra.Command{
@@ -71,9 +71,8 @@ var loginCmd = &cobra.Command{
 			challenge := codeChallengeS256(verifier)
 
 			// Kill any existing server on the port
-			if err := shutdownExistingServer(); err != nil {
-				// Non-fatal, continue anyway
-			}
+			// Non-fatal: best-effort shutdown of any existing server
+			_ = shutdownExistingServer()
 
 			// Start fresh background OAuth server with PKCE params
 			executable, err := os.Executable()
@@ -81,6 +80,7 @@ var loginCmd = &cobra.Command{
 				return fmt.Errorf("failed to get executable path: %w", err)
 			}
 
+			// #nosec G204 -- executable is from os.Executable(), which is our own binary
 			bgCmd := exec.Command(executable, "login", "--server-mode",
 				"--state", state,
 				"--verifier", verifier)
@@ -127,7 +127,7 @@ var loginCmd = &cobra.Command{
 }
 
 // runOAuthServer runs the OAuth callback server in background mode
-func runOAuthServer(cmd *cobra.Command) error {
+func runOAuthServer(_ *cobra.Command) error {
 	config := auth.OAuthConfig()
 
 	// Validate we have state and verifier
