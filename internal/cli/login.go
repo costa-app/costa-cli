@@ -89,9 +89,7 @@ var loginCmd = &cobra.Command{
 			bgCmd.Stdin = nil
 
 			// Detach from parent process
-			bgCmd.SysProcAttr = &syscall.SysProcAttr{
-				Setpgid: true,
-			}
+			configureProcessDetachment(bgCmd)
 
 			if err := bgCmd.Start(); err != nil {
 				return fmt.Errorf("failed to start background server: %w", err)
