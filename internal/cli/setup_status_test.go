@@ -298,8 +298,8 @@ func TestSetupStatus_ClaudeCode_PartiallyConfigured(t *testing.T) {
 func TestFormatStatusIcon(t *testing.T) {
 	tests := []struct {
 		name     string
-		isCosta  bool
 		expected string
+		isCosta  bool
 	}{
 		{
 			name:     "configured for Costa",
