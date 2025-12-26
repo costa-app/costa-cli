@@ -15,6 +15,7 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 	// Setup temp directory with existing config
 	tmpDir := t.TempDir()
 	settingsPath := filepath.Join(tmpDir, ".claude", "settings.json")
+	onboardingPath := filepath.Join(tmpDir, ".claude.json")
 
 	// Create directory
 	if err := os.MkdirAll(filepath.Dir(settingsPath), 0700); err != nil {
@@ -25,6 +26,7 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 	existingConfig := map[string]any{
 		"model":                 "costa/auto",
 		"alwaysThinkingEnabled": true,
+		"statusLine":            map[string]any{"command": "costa status --format claude-code"},
 		"env": map[string]any{
 			"ANTHROPIC_BASE_URL":               "https://ai.costa.app/api",
 			"ANTHROPIC_AUTH_TOKEN":             "old-token-must-not-change",
@@ -42,12 +44,21 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 		t.Fatalf("Failed to write existing config: %v", err)
 	}
 
+	// Write onboarding file
+	onboardingConfig := map[string]any{
+		"hasCompletedOnboarding": true,
+	}
+	onboardingData, _ := json.MarshalIndent(onboardingConfig, "", "  ")
+	if err := os.WriteFile(onboardingPath, onboardingData, 0600); err != nil {
+		t.Fatalf("Failed to write onboarding file: %v", err)
+	}
+
 	// Mock HOME to point to temp dir
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", tmpDir)
 	defer os.Setenv("HOME", originalHome)
 
-	// Prepare command with stdin set to "n\nn\n" (decline status line, then decline proceed)
+	// Prepare command with stdin set to "n\nn\n" (decline statusline, then decline proceed)
 	var outBuf, errBuf bytes.Buffer
 	stdinReader := strings.NewReader("n\nn\n")
 
@@ -66,11 +77,8 @@ func TestSetupClaudeCode_DeclinePrompt_DoesNotWrite(t *testing.T) {
 		t.Fatalf("Command failed: %v", err)
 	}
 
-	// Verify output contains the prompts (default is YES with [Y/n])
+	// Verify output contains the proceed prompt
 	output := outBuf.String()
-	if !strings.Contains(output, "Include status line? [Y/n]:") {
-		t.Errorf("Expected status line prompt in output, got:\n%s", output)
-	}
 	if !strings.Contains(output, "Proceed with changes? [Y/n]:") {
 		t.Errorf("Expected proceed prompt in output, got:\n%s", output)
 	}
