@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	"github.com/pelletier/go-toml/v2"
 
@@ -16,7 +14,7 @@ import (
 )
 
 // Codex implements the Integration interface for Codex CLI
-// It manages ~/.codex/config.toml and env export in shell profile
+// It manages ~/.codex/config.toml with embedded bearer token
 
 type Codex struct{}
 
@@ -43,13 +41,17 @@ func (c *Codex) Apply(ctx context.Context, opts integrations.ApplyOpts) (integra
 		}
 	}
 
-	// Verify token is available (required for shell profile setup in CLI)
-	if opts.TokenOverride == "" {
+	// Fetch coding token
+	var codingToken string
+	if opts.TokenOverride != "" {
+		codingToken = opts.TokenOverride
+	} else {
 		debug.Printf("Fetching coding token from Costa...\n")
-		_, err := auth.GetCodingToken(ctx)
+		tokenData, err := auth.GetCodingToken(ctx)
 		if err != nil {
 			return res, fmt.Errorf("failed to get Costa token: %w\nRun 'costa login' first", err)
 		}
+		codingToken = tokenData.AccessToken
 	}
 
 	// Build desired structure
@@ -61,9 +63,9 @@ func (c *Codex) Apply(ctx context.Context, opts integrations.ApplyOpts) (integra
 		},
 		"model_providers": map[string]any{
 			"costa": map[string]any{
-				"name":     "costa",
-				"base_url": auth.GetBaseURL() + "/api/v1",
-				"env_key":  "COSTA_KEY",
+				"name":                      "costa",
+				"base_url":                  auth.GetBaseURL() + "/api/v1",
+				"experimental_bearer_token": codingToken,
 			},
 		},
 	}
@@ -184,69 +186,34 @@ func mergeToml(existing, desired map[string]any) (map[string]any, []string) {
 		costa["base_url"] = base
 		apply("model_providers.costa.base_url")
 	}
-	if costa["env_key"] != "COSTA_KEY" {
-		costa["env_key"] = "COSTA_KEY"
-		apply("model_providers.costa.env_key")
+
+	// Get the desired token from desired map
+	desiredProviders, ok := desired["model_providers"].(map[string]any)
+	if !ok {
+		return updated, updatedKeys
 	}
+	desiredCosta, ok := desiredProviders["costa"].(map[string]any)
+	if !ok {
+		return updated, updatedKeys
+	}
+	desiredToken, ok := desiredCosta["experimental_bearer_token"].(string)
+	if !ok {
+		return updated, updatedKeys
+	}
+
+	if costa["experimental_bearer_token"] != desiredToken {
+		costa["experimental_bearer_token"] = desiredToken
+		apply("model_providers.costa.experimental_bearer_token")
+	}
+
+	// Remove old env_key if present
+	if _, hasEnvKey := costa["env_key"]; hasEnvKey {
+		delete(costa, "env_key")
+		apply("model_providers.costa.env_key (removed)")
+	}
+
 	providers["costa"] = costa
 	updated["model_providers"] = providers
 
 	return updated, updatedKeys
-}
-
-// AddCostaKeyToShellProfile ensures COSTA_KEY is exported in the user's shell profile
-func AddCostaKeyToShellProfile(token string) (string, error) {
-	h, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-
-	// Detect shell from $SHELL environment variable
-	shellPath := os.Getenv("SHELL")
-	if shellPath == "" {
-		return "", fmt.Errorf("SHELL environment variable not set; cannot determine shell profile")
-	}
-
-	// Extract shell name from path (e.g., /bin/zsh -> zsh)
-	shellName := filepath.Base(shellPath)
-
-	// Determine profile file based on shell
-	var profile string
-	switch shellName {
-	case "zsh":
-		profile = filepath.Join(h, ".zprofile")
-	case "bash":
-		// Prefer .bash_profile on macOS, .bashrc on Linux
-		if runtime.GOOS == "darwin" {
-			profile = filepath.Join(h, ".bash_profile")
-		} else {
-			profile = filepath.Join(h, ".bashrc")
-		}
-	default:
-		return "", fmt.Errorf("unsupported shell: %s (only bash and zsh are supported)", shellName)
-	}
-
-	line := fmt.Sprintf("export COSTA_KEY=%q\n", token)
-
-	// Idempotent append (simple): read and check substring
-	data, _ := os.ReadFile(profile)
-	if !containsLine(string(data), line) {
-		f, err := os.OpenFile(profile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-		if err != nil {
-			return "", err
-		}
-		defer func() {
-			if cerr := f.Close(); cerr != nil && err == nil {
-				err = cerr
-			}
-		}()
-		if _, err := f.WriteString(line); err != nil {
-			return "", err
-		}
-	}
-	return profile, nil
-}
-
-func containsLine(s, line string) bool {
-	return strings.Contains(s, line)
 }

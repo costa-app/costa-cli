@@ -9,7 +9,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/costa-app/costa-cli/internal/auth"
 	"github.com/costa-app/costa-cli/internal/integrations"
 	"github.com/costa-app/costa-cli/internal/integrations/claudecode"
 	"github.com/costa-app/costa-cli/internal/integrations/codex"
@@ -496,10 +495,11 @@ func runSetupCodex(cmd *cobra.Command, args []string) error {
 
 	// Confirm if not --force
 	if !setupForce {
-		fmt.Fprint(cmd.OutOrStdout(), "\nProceed with changes? [y/N]: ")
+		fmt.Fprint(cmd.OutOrStdout(), "\nProceed with changes? [Y/n]: ")
 		var response string
 		fmt.Scanln(&response)
-		if strings.ToLower(response) != "y" && strings.ToLower(response) != "yes" {
+		resp := strings.ToLower(strings.TrimSpace(response))
+		if resp == "n" || resp == "no" {
 			fmt.Fprintln(cmd.OutOrStdout(), "Canceled.")
 			return nil
 		}
@@ -508,33 +508,12 @@ func runSetupCodex(cmd *cobra.Command, args []string) error {
 	// Phase 2: apply
 	writeOpts := opts
 	writeOpts.DryRun = false
-	result, err := integration.Apply(ctx, writeOpts)
+	_, err = integration.Apply(ctx, writeOpts)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintln(cmd.OutOrStdout(), "✅ Successfully configured Codex for Costa!")
-
-	// Now add COSTA_KEY to shell profile
-	token := opts.TokenOverride
-	if token == "" {
-		// Must fetch it (same logic as in codex.go)
-		tokenData, err := auth.GetCodingToken(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to get token for shell profile: %w", err)
-		}
-		token = tokenData.AccessToken
-	}
-
-	profilePath, err := codex.AddCostaKeyToShellProfile(token)
-	if err != nil {
-		return fmt.Errorf("failed to add COSTA_KEY to shell profile: %w", err)
-	}
-
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Added COSTA_KEY to %s\n", profilePath)
-	fmt.Fprintln(cmd.OutOrStdout(), "💡 Please run: source "+profilePath)
-
-	_ = result
 	return nil
 }
 
