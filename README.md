@@ -9,14 +9,12 @@ Command-line tool for managing Costa authentication and IDE integrations.
 
 ## Overview
 
-`costa` is a CLI that authenticates you to Costa's agentic coding platform and configures supported IDE tools (like Claude Code) to use Costa's API and models.
+`costa` is a CLI that authenticates you to Costa's team coding platform and configures supported AI coding tools to use Costa's API and models.
 
 Features:
-- OAuth2 authentication with PKCE flow
-- Automatic token refresh and management
-- Safe, non-destructive configuration of Claude Code
-- Automatic backups before making changes
-- Plan/apply workflow with dry-run support
+- Connect Costa to your AI coding tools (including Claude Code, Codex and many more...)
+- Check your current Costa usage (sessions and points)
+- View your Costa threads (coming soon)
 
 ## Installation
 

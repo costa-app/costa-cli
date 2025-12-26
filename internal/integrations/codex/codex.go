@@ -1,0 +1,219 @@
+package codex
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/pelletier/go-toml/v2"
+
+	"github.com/costa-app/costa-cli/internal/auth"
+	"github.com/costa-app/costa-cli/internal/debug"
+	"github.com/costa-app/costa-cli/internal/integrations"
+)
+
+// Codex implements the Integration interface for Codex CLI
+// It manages ~/.codex/config.toml with embedded bearer token
+
+type Codex struct{}
+
+func New() *Codex { return &Codex{} }
+
+func (c *Codex) Name() string { return "codex" }
+
+// Apply configures Codex per user scope only (project scope not supported)
+func (c *Codex) Apply(ctx context.Context, opts integrations.ApplyOpts) (integrations.ApplyResult, error) {
+	res := integrations.ApplyResult{}
+
+	// Resolve config path
+	cfgPath, err := resolveConfigPath()
+	if err != nil {
+		return res, err
+	}
+	res.ConfigPath = cfgPath
+
+	// Load existing TOML if present
+	existing := map[string]any{}
+	if data, err := os.ReadFile(cfgPath); err == nil {
+		if err := toml.Unmarshal(data, &existing); err != nil {
+			return res, fmt.Errorf("failed parsing %s: %w", cfgPath, err)
+		}
+	}
+
+	// Fetch coding token
+	var codingToken string
+	if opts.TokenOverride != "" {
+		codingToken = opts.TokenOverride
+	} else {
+		debug.Printf("Fetching coding token from Costa...\n")
+		tokenData, err := auth.GetCodingToken(ctx)
+		if err != nil {
+			return res, fmt.Errorf("failed to get Costa token: %w\nRun 'costa login' first", err)
+		}
+		codingToken = tokenData.AccessToken
+	}
+
+	// Build desired structure
+	desired := map[string]any{
+		"model_provider": "costa",
+		"model":          "costa/auto",
+		"features": map[string]any{
+			"web_search_request": true,
+		},
+		"model_providers": map[string]any{
+			"costa": map[string]any{
+				"name":                      "costa",
+				"base_url":                  auth.GetBaseURL() + "/api/v1",
+				"experimental_bearer_token": codingToken,
+			},
+		},
+	}
+
+	// Merge desired into existing
+	updated, updatedKeys := mergeToml(existing, desired)
+	res.UpdatedKeys = updatedKeys
+	res.Changed = len(updatedKeys) > 0
+
+	if opts.DryRun || !res.Changed {
+		return res, nil
+	}
+
+	// Ensure directory exists
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0700); err != nil {
+		return res, err
+	}
+
+	// Write TOML atomically
+	bytes, err := toml.Marshal(updated)
+	if err != nil {
+		return res, err
+	}
+	tmp := cfgPath + ".tmp"
+	if err := os.WriteFile(tmp, bytes, 0600); err != nil {
+		return res, err
+	}
+	if err := os.Rename(tmp, cfgPath); err != nil {
+		return res, err
+	}
+
+	return res, nil
+}
+
+// Status reports Codex status
+func (c *Codex) Status(ctx context.Context, scope integrations.Scope) (integrations.StatusResult, error) {
+	res := integrations.StatusResult{Scope: integrations.ScopeUser}
+
+	cfgPath, err := resolveConfigPath()
+	if err != nil {
+		return res, err
+	}
+	res.ConfigPath = cfgPath
+
+	if data, err := os.ReadFile(cfgPath); err == nil {
+		res.ConfigExists = true
+		var m map[string]any
+		if err := toml.Unmarshal(data, &m); err == nil {
+			if mp, ok := m["model"].(string); ok {
+				res.Model = mp
+			}
+			// determine if costa configured
+			if prov, ok := m["model_provider"].(string); ok && prov == "costa" {
+				res.IsCosta = true
+			}
+		}
+	}
+	return res, nil
+}
+
+func resolveConfigPath() (string, error) {
+	h, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(h, ".codex", "config.toml"), nil
+}
+
+// mergeToml does a shallow merge and tracks updated keys
+func mergeToml(existing, desired map[string]any) (map[string]any, []string) {
+	updated := map[string]any{}
+	for k, v := range existing {
+		updated[k] = v
+	}
+
+	var updatedKeys []string
+	apply := func(path string) {
+		updatedKeys = append(updatedKeys, path)
+	}
+
+	// top-level
+	if existing["model_provider"] != desired["model_provider"] {
+		updated["model_provider"] = desired["model_provider"]
+		apply("model_provider")
+	}
+	if existing["model"] != desired["model"] {
+		updated["model"] = desired["model"]
+		apply("model")
+	}
+
+	// features
+	feat := map[string]any{}
+	if v, ok := existing["features"].(map[string]any); ok {
+		feat = v
+	}
+	if feat["web_search_request"] != true {
+		feat["web_search_request"] = true
+		updated["features"] = feat
+		apply("features.web_search_request")
+	}
+
+	// providers.costa
+	providers := map[string]any{}
+	if v, ok := existing["model_providers"].(map[string]any); ok {
+		providers = v
+	}
+	costa := map[string]any{}
+	if v, ok := providers["costa"].(map[string]any); ok {
+		costa = v
+	}
+
+	if costa["name"] != "costa" {
+		costa["name"] = "costa"
+		apply("model_providers.costa.name")
+	}
+	base := auth.GetBaseURL() + "/api/v1"
+	if costa["base_url"] != base {
+		costa["base_url"] = base
+		apply("model_providers.costa.base_url")
+	}
+
+	// Get the desired token from desired map
+	desiredProviders, ok := desired["model_providers"].(map[string]any)
+	if !ok {
+		return updated, updatedKeys
+	}
+	desiredCosta, ok := desiredProviders["costa"].(map[string]any)
+	if !ok {
+		return updated, updatedKeys
+	}
+	desiredToken, ok := desiredCosta["experimental_bearer_token"].(string)
+	if !ok {
+		return updated, updatedKeys
+	}
+
+	if costa["experimental_bearer_token"] != desiredToken {
+		costa["experimental_bearer_token"] = desiredToken
+		apply("model_providers.costa.experimental_bearer_token")
+	}
+
+	// Remove old env_key if present
+	if _, hasEnvKey := costa["env_key"]; hasEnvKey {
+		delete(costa, "env_key")
+		apply("model_providers.costa.env_key (removed)")
+	}
+
+	providers["costa"] = costa
+	updated["model_providers"] = providers
+
+	return updated, updatedKeys
+}
