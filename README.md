@@ -13,7 +13,7 @@ from your terminal.
 ### Install Script (recommended)
 
 ```bash
-curl -fsSL https://costa.app/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/costa-app/costa-cli/main/install.sh | sh -
 ```
 
 ### Homebrew (macOS / Linux)
