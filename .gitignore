@@ -1,0 +1,26 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Shell artifacts
+*.log
+*.tmp
+
+# Installer testing artifacts
+costa
+costa.exe
+*.tar.gz
+*.zip
+
+# Node/npm leftovers if someone generates docs
+node_modules/
+
+# Temporary directories
+tmp/
+dist/

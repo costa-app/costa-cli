@@ -1,0 +1,13 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Costa Security Support
+    url: https://costa.app/support
+    about: Get help with your account, billing, or product usage.
+
+  - name: Documentation
+    url: https://costa.app/docs
+    about: Read Costa CLI and Costa Security documentation.
+
+  - name: Security Reports
+    url: mailto:security@costa.app
+    about: Please do not report security issues publicly. Email security@costa.app instead.
