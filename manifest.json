@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "channels": {
+    "stable": {
+      "version": "0.1.5",
+      "date": "0001-01-01T00:00:00Z",
+      "min_update_from": "0.1.0",
+      "migrations": {},
+      "assets": {}
+    }
+  }
+}
