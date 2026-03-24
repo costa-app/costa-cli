@@ -1,20 +1,31 @@
 # Costa CLI
 
-Costa CLI is the official command-line interface for interacting with
-[Costa](https://costa.app).
+Costa CLI is the official command-line interface for [Costa](https://costa.app).
 
-It allows you to authenticate, manage resources, and automate workflows
-from your terminal.
+![Costa CLI Demo](https://costa-app.github.io/costa-cli/demos/login.gif)
 
----
+Costa brings order to your AI journey. It is an AI gateway that gives your team complete observability, security and control.
 
-## Installation
+It works with Claude Code, OpenClaw, Codex... and thousands of other tools.
 
-### Install Script (recommended)
+**Stop flying Blind**
+
+Most AI setups are hard to see into.
+Costa isn't.
+
+> Use it once. You'll get it.
+
+
+# Installation
+
+### Install Script (recommended/multiplatform)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/costa-app/costa-cli/main/install.sh | sh -
 ```
+---
+
+### Other options:
 
 ### Homebrew (macOS / Linux)
 
@@ -29,7 +40,7 @@ Prebuilt binaries are available on the
 
 Download the appropriate archive for your operating system and architecture.
 
-## Usage
+# Usage
 
 After installation:
 
@@ -47,7 +58,7 @@ costa --help
 
 ## Documentation
 
-Full documentation is available at: https://costa.app/docs
+Full documentation is available at: https://docs.costa.app/
 
 ## Terms of Use
 
@@ -56,4 +67,4 @@ https://costa.app/terms
 
 ## License
 The software is proprietary and licensed under the terms described in
-the LICENSE￼file.
+the LICENSE.
