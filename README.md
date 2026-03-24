@@ -2,7 +2,7 @@
 
 Costa CLI is the official command-line interface for [Costa](https://costa.app).
 
-![Costa CLI Demo](https://costa-app.github.io/costa-cli/demos/login.gif)
+![Costa CLI Demo](https://raw.githubusercontent.com/costa-app/costa-cli/gh-pages/demos/login.gif)
 
 Costa brings order to your AI journey. It is an AI gateway that gives your team complete observability, security and control.
 
