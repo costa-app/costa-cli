@@ -2,30 +2,30 @@
   "schema": 1,
   "channels": {
     "stable": {
-      "version": "0.1.10",
+      "version": "0.1.11",
       "date": "0001-01-01T00:00:00Z",
       "min_update_from": "0.1.0",
       "migrations": {},
       "assets": {
         "darwin-all": {
-          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.10/costa-cli_darwin_all.tar.gz",
-          "sha256": "b93b17d2ac90c17010af13f735ce682d8ede44c52bd11136f3e9f7ad9b94f91a"
+          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.11/costa-cli_darwin_all.tar.gz",
+          "sha256": "db2186883cce2b9d2e2a5d9849dc6844438735f70f42663d38e610016c860629"
         },
         "linux-amd64": {
-          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.10/costa-cli_linux_amd64.tar.gz",
-          "sha256": "0a015c526191146a4f1c15704adb7165edf080af3189eb1cd17d639b39ff8377"
+          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.11/costa-cli_linux_amd64.tar.gz",
+          "sha256": "b5615e1adeccda3b585c6247982ba192d3abccf2fbdd5686e5808314b6718b14"
         },
         "linux-arm64": {
-          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.10/costa-cli_linux_arm64.tar.gz",
-          "sha256": "688e0b97d33adcf1926c7566964cda3aa0b342773abba4e8d4c021baf22c545e"
+          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.11/costa-cli_linux_arm64.tar.gz",
+          "sha256": "a9c4c8160e61dbe42676ed81c97b47a1fa62f8c7c627d4965d242a9aa7523bd9"
         },
         "windows-amd64": {
-          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.10/costa-cli_windows_amd64.tar.gz",
-          "sha256": "a4a99b8941dd11dc6887afbc8f3b02bb408272a9a2907e847dd748a5d5c7d18f"
+          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.11/costa-cli_windows_amd64.tar.gz",
+          "sha256": "69bd45c3cee933d97365e0d732c84997e8147ed11041cbd86c50210ce3dc8799"
         },
         "windows-arm64": {
-          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.10/costa-cli_windows_arm64.tar.gz",
-          "sha256": "76513d9e0282f286acbfa09e1c416ef247be614f792aad236b1eb55df0e10ad0"
+          "url": "https://github.com/costa-app/costa-cli/releases/download/v0.1.11/costa-cli_windows_arm64.tar.gz",
+          "sha256": "0d4bc74fe8a506074208517d703ff27f7638fb9ca145fee024587ae9ab8dadee"
         }
       }
     }
